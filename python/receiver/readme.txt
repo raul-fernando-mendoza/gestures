@@ -1,0 +1,1 @@
+#MLT-BT057 bluetooth keyphase to connect for bluetooth: 123456
