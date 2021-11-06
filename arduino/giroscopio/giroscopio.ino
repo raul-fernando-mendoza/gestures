@@ -107,7 +107,7 @@ MPU6050 mpu;
 // not compensated for orientation, so +X is always +X according to the
 // sensor, just without the effects of gravity. If you want acceleration
 // compensated for orientation, us OUTPUT_READABLE_WORLDACCEL instead.
-//#define OUTPUT_READABLE_REALACCEL
+#define OUTPUT_READABLE_REALACCEL
 
 // uncomment "OUTPUT_READABLE_WORLDACCEL" if you want to see acceleration
 // components with gravity removed and adjusted for the world frame of
@@ -254,7 +254,7 @@ void setup() {
     pinMode(LED_PIN, OUTPUT);
 
     Serial.println("initializing serial 1");
-    Serial1.begin(9600);
+    //Serial1.begin(9600);
 
   for( int i = 0; i<5; i++){
     digitalWrite(LED_PIN, 1);
@@ -312,7 +312,7 @@ void loop() {
             int y = (ypr[0] * 180/M_PI);
             int p = (ypr[1] * 180/M_PI);
             int r = (ypr[2] * 180/M_PI);
-            if( y != prev_y || p != prev_p || r != prev_r )
+            //if( y != prev_y || p != prev_p || r != prev_r )
             {
               String str = "";
               long l =  millis();
@@ -320,15 +320,15 @@ void loop() {
               prev_y = y;
               prev_p = p;
               prev_r = r;
-              Serial.print("ypr\t");
-              Serial.print(l);
-              Serial.print("\t");
-              Serial.print(ypr[0] * 180/M_PI);
-              Serial.print("\t");
-              Serial.print(ypr[1] * 180/M_PI);
-              Serial.print("\t");
-              Serial.println(ypr[2] * 180/M_PI);
-              Serial1.println( str );
+              //Serial.print("ypr\t");
+              //Serial.print(l);
+              //Serial.print("\t");
+              Serial.print(ypr[0] * 180/M_PI * 100);
+              //Serial.print("\t");
+              //Serial.print(ypr[1] * 180/M_PI);
+              //Serial.print("\t");
+              //Serial.println(ypr[2] * 180/M_PI);
+              //Serial1.println( str );
             }
         #endif
 
@@ -338,12 +338,21 @@ void loop() {
             mpu.dmpGetAccel(&aa, fifoBuffer);
             mpu.dmpGetGravity(&gravity, &q);
             mpu.dmpGetLinearAccel(&aaReal, &aa, &gravity);
-            Serial.print("areal\t");
-            Serial.print(aaReal.x);
-            Serial.print("\t");
-            Serial.print(aaReal.y);
-            Serial.print("\t");
-            Serial.println(aaReal.z);
+            int r_y = aaReal.x;
+            int r_p = aaReal.y;
+            int r_r = aaReal.z;
+            //if( abs(y-prev_y) > 100 || abs(p-prev_p) >100 || (r-prev_r) > 100 ){            
+              Serial.print("\t");
+              Serial.println(aaReal.x);
+             // Serial.print("\t");
+             // Serial.print(aaReal.y);
+             // Serial.print("\t");
+             // Serial.println(aaReal.z);
+             //Serial.print("\n");
+              prev_y = aaReal.x;
+              prev_p = aaReal.y;
+              prev_r = aaReal.z;              
+            //}
         #endif
 
         #ifdef OUTPUT_READABLE_WORLDACCEL
@@ -354,12 +363,13 @@ void loop() {
             mpu.dmpGetGravity(&gravity, &q);
             mpu.dmpGetLinearAccel(&aaReal, &aa, &gravity);
             mpu.dmpGetLinearAccelInWorld(&aaWorld, &aaReal, &q);
-            Serial.print("aworld\t");
-            Serial.print(aaWorld.x);
-            Serial.print("\t");
-            Serial.print(aaWorld.y);
-            Serial.print("\t");
-            Serial.println(aaWorld.z);
+            //Serial.print("aworld\t");
+            Serial.print(-aaWorld.x);
+            //Serial.print("\t");
+            //Serial.print(aaWorld.y);
+            //Serial.print("\t");
+            //Serial.println(aaWorld.z);
+            Serial.print("\n");
         #endif
     
         #ifdef OUTPUT_TEAPOT
