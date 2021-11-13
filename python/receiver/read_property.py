@@ -45,74 +45,124 @@ UART_RX_CHAR_UUID = "0000FFE1-0000-1000-8000-00805F9B34FB"
 leftSide = 0
 leftTime = 0
 
-memoryfile=open('C:\\projects\\gestures\\python\\reader\\mixkit-drum-and-percussion-545.wav',"rb")
-memory_read = memoryfile.read()
+gr = False
+memoryfileRight=open('C:\\projects\\gestures\\python\\reader\\right.wav',"rb")
+memoryRight = memoryfileRight.read()
+
+gl = False
+memoryfileLeft=open('C:\\projects\\gestures\\python\\reader\\left.wav',"rb")
+memoryLeft = memoryfileLeft.read()
+
+
+gu = False
+memoryfileUp=open('C:\\projects\\gestures\\python\\reader\\up.wav',"rb")
+memoryUp = memoryfileUp.read()
+
+gd = False
+memoryfileDown=open('C:\\projects\\gestures\\python\\reader\\down.wav',"rb")
+memoryDown = memoryfileDown.read()
+
+
 
 def print_there(x, y, text):
      sys.stdout.write("\x1b7\x1b[%d;%df%s\x1b8" % (x, y, text))
      sys.stdout.flush()
 
 def notification_handler(num:int, msg:bytearray):
-    msg:str = "".join(map(chr, msg))
-    #msg = msg.strip()
-    global q1
-    global message
-    global leftSide
-    global memory_read
-    global leftTime
-    global i
-    global width
-    global height
-    global red
-    global dc
+    try:
+        msg:str = "".join(map(chr, msg))
+        #msg = msg.strip()
+        global q1
+        global message
+        global leftSide
+        global memoryLeft
+        global memoryRight
+        global memoryUp
+        global memoryDown
 
-    process = False
+        global leftTime
+        global i
+        global width
+        global height
+        global red
+        global dc
+        global gr
+        global gl
+        global gu
+        global gd
 
-    #print(f"({msg})")
-    #first put the message in the queu
-    for c in msg:
-        q1.put(c)
+        process = False
 
-    while q1.empty() == False: 
-        c = q1.get()
-        if c == '\n':
-            process = True 
-            print(f"line:{message}\n")          
-        else:
-            message = message + c
-            process = False
+        #print(f"({msg})")
+        #first put the message in the queu
+        for c in msg:
+            q1.put(c)
 
-        if process == True:
+        while q1.empty() == False: 
+            c = q1.get()
             
-            parts = message.split("\t")
-            if( len(parts) == 7):
-                #print_there( 1,1,f"{parts}")
-                print(f"{parts}")
-                if( i < 1024):
-                    xgiro:int = int( ( int(parts[3]) * (height/2) / 10000) + (height/2) ) 
-                    win32gui.SetPixel(dc, i, xgiro, red) 
-                    i = i + 1
+            if c == '\r' or c=='\n':
+                if c=='\r':
+                    None
                 else:
-                    i = 0
-                """
-                #r.set(ADDRESS, msg)
-                t = int(parts[0])
-                angle = int(parts[1])
-                if int(angle) > 0:
-                    if leftSide == False and angle > 15 :
-                        leftSide = True
-                        if t > leftTime:
-                            leftTime = t
-                            winsound.PlaySound(memory_read, winsound.SND_MEMORY )
-                            print(f"*************** leftSide True {t} {angle}\n")
-                    if leftSide == True and angle < 10 :
-                        leftSide = False
-                        print(f"****************  leftSide false {t} {angle}\n")
-                """
-            else: 
-                print( f"len: {len(parts)}" )
-            message = ""
-    
+                    process = True 
+                    print(f"line:{message}\n")          
+            else:
+                message = message + c
+                process = False
+
+            if process == True:
+                
+                parts = message.split("\t")
+                if( len(parts) == 7):
+                    #print_there( 1,1,f"{parts}")
+                    print(f"{parts}")
+                    if( i < 1024):
+
+                        xgiro:int = int( (int(parts[1])/(32768/256)) + (height/2) ) 
+                        win32gui.SetPixel(dc, i, xgiro, red) 
+                        i = i + 1
+                    else:
+                        i = 0
+                    
+                    #r.set(ADDRESS, msg)
+                    t = int(parts[0])
+                    gz = int(parts[3])
+                    
+                    
+                    if  gr == False and gz < -17000:
+                        gr = True
+                        winsound.PlaySound(memoryRight, winsound.SND_MEMORY | winsound.SND_NOWAIT)
+                    elif gr == True and gz > -17000:
+                        gr = False
+
+                    if gl == False and  gz > 17000:
+                        gl = True
+                        winsound.PlaySound(memoryLeft, winsound.SND_MEMORY | winsound.SND_NOWAIT)
+                    elif gl == True and gz < 17000:
+                        gl = False 
+                    
+                    """
+                    gx = int(parts[1] )
+
+                    if gu == False  and gx < -17000:
+                        gu = True
+                        winsound.PlaySound(memoryUp, winsound.SND_MEMORY | winsound.SND_NOWAIT)
+                    if gu == True and gx > -17000:
+                        gu = False
+
+                    if gd == False  and  gx > 17000:
+                        gd = True
+                        winsound.PlaySound(memoryDown, winsound.SND_MEMORY | winsound.SND_NOWAIT)
+                    if gd == True and gx < 17000:
+                        gd = False 
+                    """                                   
+                    
+                else: 
+                    print( f"len: {len(parts)}" )
+                message = ""
+    except Exception as e:
+        print("error converting to integer:" + e)    
     #    #winsound.PlaySound("C://projects//gestures//python//reader//mixkit-drum-and-percussion-545.wav", False)
     #elif near == True and int(msg) > 17 : 
     #    near = False
