@@ -21,12 +21,51 @@ import winsound
 from win32api import GetSystemMetrics
 import win32gui
 import win32api
+import win32con
+import serial
+
+ser = serial.Serial('COM4')
+print(ser.name) 
+#ser.write(b'a')
+#ser.close()  
+#exit(1)
+
 width = GetSystemMetrics (0)
 height = GetSystemMetrics (1)
-print(f"Screen resolution = {width} {height}");
-dc = win32gui.GetDC(0)
+print(f"Screen resolution = {width} {height}")
+
+
+#create window
+class WindowCreator:
+    def create_window(self,hwndparent):
+        wc = win32gui.WNDCLASS()
+        wc.lpszClassName = 'test_win32gui_1'
+        wc.style =  win32con.CS_GLOBALCLASS|win32con.CS_VREDRAW | win32con.CS_HREDRAW
+        wc.hbrBackground = win32con.COLOR_WINDOW+1
+        #wc.lpfnWndProc=wndproc_1
+        class_atom=win32gui.RegisterClass(wc)       
+        hwnd = win32gui.CreateWindow(wc.lpszClassName,
+            'Spin the Lobster!',
+            win32con.WS_CAPTION|win32con.WS_VISIBLE,
+            100,100,900,900, 0, 0, 0, None)
+
+        return hwnd
+
+wincreator = WindowCreator()
+
+hwnd = wincreator.create_window(0)
+
+dc = win32gui.GetDC(hwnd)
 red = win32api.RGB(255, 0, 0)
+
+rect = win32gui.GetClientRect(hwnd)
+whiteColor = win32api.RGB(255,255,255)
+brush = win32gui.CreateSolidBrush(whiteColor)
+
+
+
 i=0
+win32gui.SetPixel(dc, 0, int(rect[3]/2), red)
 
 
 import queue
@@ -69,30 +108,35 @@ def print_there(x, y, text):
      sys.stdout.flush()
 
 def notification_handler(num:int, msg:bytearray):
+
+    msg:str = "".join(map(chr, msg))
+    #msg = msg.strip()
+    global q1
+    global message
+    global leftSide
+    global memoryLeft
+    global memoryRight
+    global memoryUp
+    global memoryDown
+
+    global leftTime
+    global i
+    global width
+    global height
+    global red
+    global dc
+    global gr
+    global gl
+    global gu
+    global gd
+    global hwnd
+    global rect
+    global whiteColor
+    global brush
+    global ser
+    process = False
+
     try:
-        msg:str = "".join(map(chr, msg))
-        #msg = msg.strip()
-        global q1
-        global message
-        global leftSide
-        global memoryLeft
-        global memoryRight
-        global memoryUp
-        global memoryDown
-
-        global leftTime
-        global i
-        global width
-        global height
-        global red
-        global dc
-        global gr
-        global gl
-        global gu
-        global gd
-
-        process = False
-
         #print(f"({msg})")
         #first put the message in the queu
         for c in msg:
@@ -106,7 +150,7 @@ def notification_handler(num:int, msg:bytearray):
                     None
                 else:
                     process = True 
-                    print(f"line:{message}\n")          
+                    #print(f"line:{message}\n")          
             else:
                 message = message + c
                 process = False
@@ -117,29 +161,43 @@ def notification_handler(num:int, msg:bytearray):
                 if( len(parts) == 7):
                     #print_there( 1,1,f"{parts}")
                     print(f"{parts}")
-                    if( i < 1024):
-
-                        xgiro:int = int( (int(parts[1])/(32768/256)) + (height/2) ) 
-                        win32gui.SetPixel(dc, i, xgiro, red) 
+                    if( i < rect[2] ):
+                        
+                        try:
+                            xgiro:int = int( (int(parts[3])/(32000/256)) + (800/2) )
+                            #print(f'coordenadas:{i},{xgiro}') 
+                            #win32gui.SetPixel(dc, i, xgiro, red) 
+                            win32gui.LineTo(dc, i, xgiro)
+                        except Exception as e:
+                            print(f"error setpixel:{i},{xgiro}")
+                            exit()
                         i = i + 1
                     else:
                         i = 0
+                        win32gui.FillRect(dc, rect, brush)
+                        win32gui.SetPixel(dc, 0, int(rect[3]/2), red)
+
                     
                     #r.set(ADDRESS, msg)
                     t = int(parts[0])
                     gz = int(parts[3])
                     
                     
-                    if  gr == False and gz < -17000:
+                    if  gr == False and gz < -10000:
                         gr = True
-                        winsound.PlaySound(memoryRight, winsound.SND_MEMORY | winsound.SND_NOWAIT)
-                    elif gr == True and gz > -17000:
+                        print("****************************************************")
+                        #winsound.PlaySound(memoryRight, winsound.SND_MEMORY | winsound.SND_NOWAIT )
+                        #winsound.PlaySound(memoryRight, winsound.SND_NOSTOP | winsound.SND_MEMORY )
+                        ser.write(b'a')
+                    elif gr == True and gz > -10000:
                         gr = False
 
-                    if gl == False and  gz > 17000:
+                    
+                    if gl == False and  gz > 10000:
                         gl = True
-                        winsound.PlaySound(memoryLeft, winsound.SND_MEMORY | winsound.SND_NOWAIT)
-                    elif gl == True and gz < 17000:
+                        winsound.PlaySound("C:\\projects\\gestures\\python\\reader\\right.wav", winsound.SND_ASYNC |  winsound.SND_FILENAME)
+
+                    elif gl == True and gz < 10000:
                         gl = False 
                     
                     """
@@ -162,7 +220,7 @@ def notification_handler(num:int, msg:bytearray):
                     print( f"len: {len(parts)}" )
                 message = ""
     except Exception as e:
-        print("error converting to integer:" + e)    
+        print(f'error outer:{e}')    
     #    #winsound.PlaySound("C://projects//gestures//python//reader//mixkit-drum-and-percussion-545.wav", False)
     #elif near == True and int(msg) > 17 : 
     #    near = False
