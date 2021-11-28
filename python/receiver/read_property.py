@@ -18,14 +18,29 @@ from bleak.exc import BleakError
 import winsound
 
 
-from win32api import GetSystemMetrics
+from win32api import GetSystemMetrics, Sleep
 import win32gui
 import win32api
 import win32con
 import serial
+import pygame
 
-ser = serial.Serial('COM4')
-print(ser.name) 
+pygame.init()
+pygame.mixer.init()
+
+good1 = pygame.mixer.Sound("C:\\projects\\gestures\\python\\reader\\right.wav")
+good2 = pygame.mixer.Sound("C:\\projects\\gestures\\python\\reader\\left.wav")
+
+pygame.mixer.find_channel().play(good1)
+
+pygame.mixer.find_channel().play(good2)
+
+#Sleep(3000)
+
+
+
+#ser = serial.Serial('COM4')
+#print(ser.name) 
 #ser.write(b'a')
 #ser.close()  
 #exit(1)
@@ -134,6 +149,9 @@ def notification_handler(num:int, msg:bytearray):
     global whiteColor
     global brush
     global ser
+    global pygame
+    global good1
+    global good2
     process = False
 
     try:
@@ -188,14 +206,16 @@ def notification_handler(num:int, msg:bytearray):
                         print("****************************************************")
                         #winsound.PlaySound(memoryRight, winsound.SND_MEMORY | winsound.SND_NOWAIT )
                         #winsound.PlaySound(memoryRight, winsound.SND_NOSTOP | winsound.SND_MEMORY )
-                        ser.write(b'a')
+                        pygame.mixer.find_channel().play(good1)
+                        #ser.write(b'a')
                     elif gr == True and gz > -10000:
                         gr = False
 
                     
                     if gl == False and  gz > 10000:
                         gl = True
-                        winsound.PlaySound("C:\\projects\\gestures\\python\\reader\\right.wav", winsound.SND_ASYNC |  winsound.SND_FILENAME)
+                        pygame.mixer.find_channel().play(good2)
+                        #winsound.PlaySound("C:\\projects\\gestures\\python\\reader\\right.wav", winsound.SND_ASYNC |  winsound.SND_FILENAME)
 
                     elif gl == True and gz < 10000:
                         gl = False 
