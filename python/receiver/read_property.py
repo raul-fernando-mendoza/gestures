@@ -77,10 +77,28 @@ rect = win32gui.GetClientRect(hwnd)
 whiteColor = win32api.RGB(255,255,255)
 brush = win32gui.CreateSolidBrush(whiteColor)
 
+colors = [ 
+    win32gui.CreatePen(win32con.PS_SOLID,0,win32api.RGB(255,0,0)),
+    win32gui.CreatePen(win32con.PS_SOLID,0,win32api.RGB(0,255,0)),
+    win32gui.CreatePen(win32con.PS_SOLID,0,win32api.RGB(0,0,255)),
+    win32gui.CreatePen(win32con.PS_SOLID,0,win32api.RGB(0,0,0)),
+    win32gui.CreatePen(win32con.PS_SOLID,0,win32api.RGB(0,255,255)), #light blue 0, 255, 255
+    win32gui.CreatePen(win32con.PS_SOLID,0,win32api.RGB(255,255,0)) #yellow 255,255,0
+]
+
 
 
 i=0
 win32gui.SetPixel(dc, 0, int(rect[3]/2), red)
+
+lastpos = [
+            (0, int(rect[3]/2)),
+            (0, int(rect[3]/2)),
+            (0, int(rect[3]/2)),
+            (0, int(rect[3]/2)),
+            (0, int(rect[3]/2)),
+            (0, int(rect[3]/2))
+        ]
 
 
 import queue
@@ -152,6 +170,8 @@ def notification_handler(num:int, msg:bytearray):
     global pygame
     global good1
     global good2
+    global lastpos
+    global colors
     process = False
 
     try:
@@ -182,18 +202,28 @@ def notification_handler(num:int, msg:bytearray):
                     if( i < rect[2] ):
                         
                         try:
-                            xgiro:int = int( (int(parts[3])/(32000/256)) + (800/2) )
-                            #print(f'coordenadas:{i},{xgiro}') 
-                            #win32gui.SetPixel(dc, i, xgiro, red) 
-                            win32gui.LineTo(dc, i, xgiro)
+                            for j in range(len(lastpos)):
+                                x , y = lastpos[j]
+
+                                win32gui.MoveToEx(dc, x, y)
+                                win32gui.SelectObject(dc, colors[j])
+                                val:int = int( (int(parts[j+1])/(32000/256)) + (800/2) )
+                                #print(f'coordenadas:{i},{xgiro}') 
+                                #win32gui.SetPixel(dc, i, xgiro, red) 
+                                win32gui.LineTo(dc, i, val)
+                                lastpos[j] = (i,val)
                         except Exception as e:
-                            print(f"error setpixel:{i},{xgiro}")
+                            print(f"error setpixel:{e}")
                             exit()
                         i = i + 1
                     else:
                         i = 0
+                        for j in range(0,len(lastpos) ):
+                            lastpos[j] = (0, int(rect[3]/2))
                         win32gui.FillRect(dc, rect, brush)
-                        win32gui.SetPixel(dc, 0, int(rect[3]/2), red)
+                       
+
+                        
 
                     
                     #r.set(ADDRESS, msg)
