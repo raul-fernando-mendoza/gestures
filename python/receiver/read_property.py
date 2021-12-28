@@ -12,6 +12,7 @@ from os import read
 import sys
 import asyncio
 import platform
+import time
 
 from bleak import BleakClient
 from bleak.exc import BleakError
@@ -24,16 +25,56 @@ import win32api
 import win32con
 import serial
 import pygame
+import keyboard
+import math
+
+
+#ADDRESS = "A8:1B:6A:B3:53:86" #bluetooth in protoboard password 123456
+ADDRESS = "50:F1:4A:6E:67:6D" #soldado 
 
 pygame.init()
 pygame.mixer.init()
 
-good1 = pygame.mixer.Sound("C:\\projects\\gestures\\python\\reader\\right.wav")
-good2 = pygame.mixer.Sound("C:\\projects\\gestures\\python\\reader\\left.wav")
+soundPath = "C:\\projects\\gestures\\python\\sounds\\"
 
-pygame.mixer.find_channel().play(good1)
+sounds = [ 
+    (pygame.mixer.Sound(soundPath + "dum.wav"), pygame.mixer.Sound(soundPath + "tac.wav") ),
+    (pygame.mixer.Sound(soundPath + "4b.wav"), pygame.mixer.Sound(soundPath + "4c.wav") ), 
+    (pygame.mixer.Sound(soundPath + "12a.wav"), pygame.mixer.Sound(soundPath + "12b.wav") ) # lados campanas 
+    # frente abajo
+     #izq der
+    #(pygame.mixer.Sound(soundPath + "5.wav"), pygame.mixer.Sound(soundPath + "6a.wav") ),# frente y atras
+    #(pygame.mixer.Sound(soundPath + "11c.wav"), pygame.mixer.Sound(soundPath + "11d.wav") ),
+    #(pygame.mixer.Sound(soundPath + "13a.wav"), pygame.mixer.Sound(soundPath + "13b.wav") )
+]
+soundsFlags = [ 
+    (False,False),
+    (False,False),
+    (False,False),
+    (False,False),
+    (False,False),
+    (False,False) 
+]
+soundsLevels = [ 
+    (-10000,10000),
+    (-10000,10000),
+    (-10000,10000),
+    (-10000,10000),
+    (-10000,10000),
+    (-10000,10000), 
+]
 
-pygame.mixer.find_channel().play(good2)
+soundLastTime = [ 0, 0, 0, 0, 0, 0]
+setup = False
+setupAverages = [0,0,0,0,0,0]
+setupAggregates = [0,0,0,0,0,0]
+setupNumReads = 0
+
+
+
+
+
+
 
 #Sleep(3000)
 
@@ -62,7 +103,7 @@ class WindowCreator:
         hwnd = win32gui.CreateWindow(wc.lpszClassName,
             'Spin the Lobster!',
             win32con.WS_CAPTION|win32con.WS_VISIBLE,
-            100,100,900,900, 0, 0, 0, None)
+            0,0,900,900, 0, 0, 0, None)
 
         return hwnd
 
@@ -71,11 +112,21 @@ wincreator = WindowCreator()
 hwnd = wincreator.create_window(0)
 
 dc = win32gui.GetDC(hwnd)
+
 red = win32api.RGB(255, 0, 0)
 
-rect = win32gui.GetClientRect(hwnd)
+clientRect = win32gui.GetClientRect(hwnd)
 whiteColor = win32api.RGB(255,255,255)
-brush = win32gui.CreateSolidBrush(whiteColor)
+whiteBrush = win32gui.CreateSolidBrush(whiteColor)
+redColor = win32api.RGB(255,0,0)
+redBrush = win32gui.CreateSolidBrush(redColor)
+blackColor = win32api.RGB(0,0,0)
+blackBrush = win32gui.CreateSolidBrush(blackColor)
+
+win32gui.FillRect(dc, clientRect, whiteColor)
+
+
+    
 
 colors = [ 
     win32gui.CreatePen(win32con.PS_SOLID,0,win32api.RGB(255,0,0)),
@@ -83,23 +134,35 @@ colors = [
     win32gui.CreatePen(win32con.PS_SOLID,0,win32api.RGB(0,0,255)),
     win32gui.CreatePen(win32con.PS_SOLID,0,win32api.RGB(0,0,0)),
     win32gui.CreatePen(win32con.PS_SOLID,0,win32api.RGB(0,255,255)), #light blue 0, 255, 255
-    win32gui.CreatePen(win32con.PS_SOLID,0,win32api.RGB(255,255,0)) #yellow 255,255,0
+    win32gui.CreatePen(win32con.PS_SOLID,0,win32api.RGB(255,255,0)), #yellow 255,255,0
+    win32gui.CreatePen(win32con.PS_SOLID,0,win32api.RGB(125,125,125)) #gray
 ]
 
 
 
 i=0
-win32gui.SetPixel(dc, 0, int(rect[3]/2), red)
+
+
+previousTime = 0
+currentPosX = int(clientRect[2]/2)
+currentPosY = int(clientRect[3]/2)
+
+soundIsActivated = False
+
+
 
 lastpos = [
-            (0, int(rect[3]/2)),
-            (0, int(rect[3]/2)),
-            (0, int(rect[3]/2)),
-            (0, int(rect[3]/2)),
-            (0, int(rect[3]/2)),
-            (0, int(rect[3]/2))
+            (0, int(clientRect[3]/2)),
+            (0, int(clientRect[3]/2)),
+            (0, int(clientRect[3]/2)),
+            (0, int(clientRect[3]/2)),
+            (0, int(clientRect[3]/2)),
+            (0, int(clientRect[3]/2)),
+            (0, int(clientRect[3]/2))
         ]
 
+buttonLastPushTime = 0
+buttonIsActive = False
 
 import queue
 q1 = queue.Queue()
@@ -108,7 +171,6 @@ message = ""
 
 
 
-ADDRESS = "A8:1B:6A:B3:53:86"
 
 
 #UART_RX_CHAR_UUID = "0000ffe1-0000-1000-8000-00805f9b34fb"
@@ -118,20 +180,20 @@ leftSide = 0
 leftTime = 0
 
 gr = False
-memoryfileRight=open('C:\\projects\\gestures\\python\\reader\\right.wav',"rb")
+memoryfileRight=open('C:\\projects\\gestures\\python\\sounds\\right.wav',"rb")
 memoryRight = memoryfileRight.read()
 
 gl = False
-memoryfileLeft=open('C:\\projects\\gestures\\python\\reader\\left.wav',"rb")
+memoryfileLeft=open('C:\\projects\\gestures\\python\\sounds\\left.wav',"rb")
 memoryLeft = memoryfileLeft.read()
 
 
 gu = False
-memoryfileUp=open('C:\\projects\\gestures\\python\\reader\\up.wav',"rb")
+memoryfileUp=open('C:\\projects\\gestures\\python\\sounds\\up.wav',"rb")
 memoryUp = memoryfileUp.read()
 
 gd = False
-memoryfileDown=open('C:\\projects\\gestures\\python\\reader\\down.wav',"rb")
+memoryfileDown=open('C:\\projects\\gestures\\python\\sounds\\down.wav',"rb")
 memoryDown = memoryfileDown.read()
 
 
@@ -163,15 +225,34 @@ def notification_handler(num:int, msg:bytearray):
     global gu
     global gd
     global hwnd
-    global rect
+    global clientRect
     global whiteColor
-    global brush
-    global ser
+    global blackColor
+    global redColor
+    global whiteBrush
+    global blackBrush
+    global redBrush    
+    #global ser
     global pygame
-    global good1
-    global good2
+    global soundsFlags
+    global sounds
     global lastpos
     global colors
+    global soundsLevels
+    global setup
+    global setupAverages
+    global setupAggregates
+    global setupNumReads
+    global keyboard
+    global numLearningReads
+    global soundLastTime
+    global currentPosX
+    global currentPosY
+    global previousTime
+    global soundIsActivated
+    global buttonLastPushTime
+    global buttonIsActive
+
     process = False
 
     try:
@@ -196,81 +277,241 @@ def notification_handler(num:int, msg:bytearray):
             if process == True:
                 
                 parts = message.split("\t")
-                if( len(parts) == 7):
+                if( len(parts) == 8):
                     #print_there( 1,1,f"{parts}")
-                    print(f"{parts}")
-                    if( i < rect[2] ):
-                        
-                        try:
-                            for j in range(len(lastpos)):
-                                x , y = lastpos[j]
+                    
 
-                                win32gui.MoveToEx(dc, x, y)
-                                win32gui.SelectObject(dc, colors[j])
-                                val:int = int( (int(parts[j+1])/(32000/256)) + (800/2) )
-                                #print(f'coordenadas:{i},{xgiro}') 
-                                #win32gui.SetPixel(dc, i, xgiro, red) 
-                                win32gui.LineTo(dc, i, val)
-                                lastpos[j] = (i,val)
-                        except Exception as e:
-                            print(f"error setpixel:{e}")
-                            exit()
-                        i = i + 1
-                    else:
+                    
+                    print(f"{parts[0]},{parts[1]},{parts[2]},{parts[3]},{parts[4]},{parts[5]},{parts[6]},{parts[7]}")
+                    (timestr, str_girox, str_giroy, str_giroz, str_accelx,str_accely,str_accelz,str_buttonStatus) = parts
+                     
+                    currentTime = int(timestr)
+
+                    giroX = int(str_girox) 
+                    giroY = int(str_giroy) 
+                    giroZ = int(str_giroz)
+
+                    
+                    accelX = int(str_accelx) 
+                    accelY = int(str_accely) 
+                    accelZ = int(str_accelz) 
+
+                    buttonStatus = int(str_buttonStatus)
+
+                    
+                    if previousTime == 0:
+                            previousTime = currentTime
+                    ( screenX, screenY, screenWidth, screenHeight) = clientRect 
+                    
+                    
+                    #if we are startin or have reach the end of the screen clean and restart
+                    if( i==0 or i >= screenWidth ):
                         i = 0
-                        for j in range(0,len(lastpos) ):
-                            lastpos[j] = (0, int(rect[3]/2))
-                        win32gui.FillRect(dc, rect, brush)
-                       
+                        for j in range(len(lastpos)):
+                            lastpos[j] = (0, int(screenHeight/2))
 
+                        #reset the screen
+                        win32gui.FillRect(dc, clientRect, whiteBrush)
+
+                        win32gui.SelectObject(dc, blackColor)
+
+                        win32gui.MoveToEx(dc, 0, int(screenHeight/2) )
+                        win32gui.LineTo(dc, screenWidth, int(screenHeight/2) )
+
+                        win32gui.MoveToEx(dc, 0, int(screenHeight/2 - 250) )
+                        win32gui.LineTo(dc,  screenWidth,  int(screenHeight/2 - 250) )
                         
+                        win32gui.MoveToEx(dc, 0, int(screenHeight/2 + 250) )
+                        win32gui.LineTo(dc,  screenWidth,  int(screenHeight/2 + 250) )
 
-                    
-                    #r.set(ADDRESS, msg)
-                    t = int(parts[0])
-                    gz = int(parts[3])
-                    
-                    
-                    if  gr == False and gz < -10000:
-                        gr = True
-                        print("****************************************************")
-                        #winsound.PlaySound(memoryRight, winsound.SND_MEMORY | winsound.SND_NOWAIT )
-                        #winsound.PlaySound(memoryRight, winsound.SND_NOSTOP | winsound.SND_MEMORY )
-                        pygame.mixer.find_channel().play(good1)
-                        #ser.write(b'a')
-                    elif gr == True and gz > -10000:
-                        gr = False
+                    #imprime los valores raw
+                    win32gui.SelectObject(dc, blackColor)
 
-                    
-                    if gl == False and  gz > 10000:
-                        gl = True
-                        pygame.mixer.find_channel().play(good2)
-                        #winsound.PlaySound("C:\\projects\\gestures\\python\\reader\\right.wav", winsound.SND_ASYNC |  winsound.SND_FILENAME)
+                    fontSize = 13
+                    lf = win32gui.LOGFONT()
+                    lf.lfFaceName = "Stencil"
+                    lf.lfHeight = fontSize
+                    lf.lfWeight = 600
 
-                    elif gl == True and gz < 10000:
-                        gl = False 
+                    lf.lfQuality = win32con.NONANTIALIASED_QUALITY
+                    hf = win32gui.CreateFontIndirect(lf)
+                    win32gui.SelectObject(dc, hf) 
+                    win32gui.FillRect(dc, (0,0,screenWidth, 100), whiteBrush)                           
+                    win32gui.DrawText(dc, f"giroX:{giroX:05}" , -1, (  0,0,100,100) , win32con.DT_NOCLIP | win32con.DT_VCENTER | win32con.DT_EXPANDTABS )
+                    win32gui.DrawText(dc, f"giroY:{giroY:05}" , -1, (100,0,100,100) , win32con.DT_NOCLIP | win32con.DT_VCENTER | win32con.DT_EXPANDTABS )
+                    win32gui.DrawText(dc, f"giroZ:{giroZ:05}" , -1, (200,0,100,100) , win32con.DT_NOCLIP | win32con.DT_VCENTER | win32con.DT_EXPANDTABS )
+                    win32gui.DrawText(dc, f"accelX:{accelX:05}" , -1, (400,0,100,100) , win32con.DT_NOCLIP | win32con.DT_VCENTER | win32con.DT_EXPANDTABS )
+                    win32gui.DrawText(dc, f"accelY:{accelY:05}" , -1, (500,0,100,100) , win32con.DT_NOCLIP | win32con.DT_VCENTER | win32con.DT_EXPANDTABS )
+                    win32gui.DrawText(dc, f"accelZ:{accelZ:05}" , -1, (600,0,100,100) , win32con.DT_NOCLIP | win32con.DT_VCENTER | win32con.DT_EXPANDTABS )
+                    win32gui.DrawText(dc, f"str_buttonStatus:{str_buttonStatus}" , -1, (700,0,100,100) , win32con.DT_NOCLIP | win32con.DT_VCENTER | win32con.DT_EXPANDTABS )
+
+
+#                    dancer =  (int(currentPosX) , int(currentPosY), int(currentPosX + 20), int(currentPosY + 20))
+#                    win32gui.FillRect(dc, dancer, redBrush)
+
+
+
+                    #grafica los valores escalados    
+                    try:
+                        for j in range(len(lastpos)):   
+                            x , y = lastpos[j]
+
+                            win32gui.MoveToEx(dc, x, y)
+                            win32gui.SelectObject(dc, colors[j])
+                            val:int = 0
+                            if j >=0 and j<3 : #giroscopio
+                                val = int(parts[j+1]) * (250.0/32768.0)
+                            if j >=3 and j<=5 : #acelerometer
+                                val = (int(parts[j+1]) / 32768.0)*100
+                            if j == 6:                                 
+                                val = int(parts[j+1]) * 100
+
+                            win32gui.LineTo(dc, i, int(val + screenHeight/2 ) )
+                            lastpos[j] = (i,int(val + int(screenHeight/2)) )
+                        i = i + 1
+
+                    except Exception as e:
+                        print(f"error:{e}")
+                        exit()
+
+                    if buttonStatus==0 and (currentTime - 1000) > buttonLastPushTime:
+                        buttonLastPushTime = currentTime
+                        buttonIsActive = not buttonIsActive
+
                     
                     """
-                    gx = int(parts[1] )
+                    #start setup 
+                    if keyboard.is_pressed('i') and setup == False:
+                        setup = True
+                        setupNumReads = 0
+                        for k in range(len(setupAggregates)):
+                            setupAggregates[k] = 0
+                        print(f"setup averages >>>>>>>>>>>>>>>")
+                    elif  setup == True and setupNumReads < 100:
+                        for k in range(len(setupAggregates)):
+                            setupAggregates[k] = setupAggregates[k] + int(parts[k+1])
+                        setupNumReads = setupNumReads + 1
+                    elif setup == True and setupNumReads>= 100:
+                        print("______________________ averages ")
+                        for k in range(len(setupAggregates)):
+                            setupAverages[k] = setupAggregates[k]/setupNumReads
+                            print(f"average {k} {setupAverages[k]}")
+                        time.sleep(5)
+                        setup = False
 
-                    if gu == False  and gx < -17000:
-                        gu = True
-                        winsound.PlaySound(memoryUp, winsound.SND_MEMORY | winsound.SND_NOWAIT)
-                    if gu == True and gx > -17000:
-                        gu = False
+                    
 
-                    if gd == False  and  gx > 17000:
-                        gd = True
-                        winsound.PlaySound(memoryDown, winsound.SND_MEMORY | winsound.SND_NOWAIT)
-                    if gd == True and gx < 17000:
-                        gd = False 
-                    """                                   
+                    #start setup 
+                    if keyboard.is_pressed('a') and setup == False:
+                        soundIsActivated = True
+                        print(f"Activate >>>>>>>>>>>>>>>")  
+
+                    if soundIsActivated == True or True:
+                        
+                        #I wnat to know if is moving
+                        #first calculate the component to the ground
+                       
+                        acc_lsb_to_g = 16384.0
+                        gX = accelX / acc_lsb_to_g
+                        gY = accelY / acc_lsb_to_g
+                        gZ = accelZ / acc_lsb_to_g
+
+                        sgZ:float = (accelZ>=0)-(accelZ<0); # allow one angle to go from -180 to +180 degrees
+                        RAD_2_DEG=57.29578 # [deg/rad]
+                        angleAccX =   math.atan2(gX, sgZ*math.sqrt(gZ*gZ + gX*gX)) * RAD_2_DEG; # [-180,+180] deg
+                        angleAccY =  - math.atan2(gX,math.sqrt(gZ*gZ + gY*gY)) * RAD_2_DEG;# [- 90,+ 90] deg
+
+                        
+                        win32gui.FillRect(dc, (0,100,screenWidth, 100), whiteBrush)                           
+                        win32gui.DrawText(dc, f"{angleAccX:06.2f}" , -1, (  0,100,0,100) , win32con.DT_NOCLIP | win32con.DT_VCENTER | win32con.DT_EXPANDTABS )                        
+                        win32gui.DrawText(dc, f"{angleAccY:06.2f}" , -1, (  100,100,0,100) , win32con.DT_NOCLIP | win32con.DT_VCENTER | win32con.DT_EXPANDTABS )                        
+
+                        #need to calculate displacement in the x position
+                        
+                        distanceX = (accelX - setupAverages[3]) * (pow((currentTime-previousTime)/1000,2))
+                        win32gui.DrawText(dc, f"{distanceX:06.2f}" , -1, (  0,300,100,100) , win32con.DT_NOCLIP | win32con.DT_VCENTER | win32con.DT_EXPANDTABS )                        
+                        distanceG =  (accelZ - setupAverages[5]) * (pow((currentTime-previousTime)/1000,2))
+                        win32gui.DrawText(dc, f"{distanceG:06.2f}" , -1, (  100,300,100,100) , win32con.DT_NOCLIP | win32con.DT_VCENTER | win32con.DT_EXPANDTABS )                        
+                        currentPosX = currentPosX + distanceX + distanceG                                                   
+                        win32gui.DrawText(dc, f"{currentPosX:06.2f}" , -1, (  300,300,100,100) , win32con.DT_NOCLIP | win32con.DT_VCENTER | win32con.DT_EXPANDTABS )                        
+                        
+                    """
+
+
+
+                         
+                    try:    
+                        if buttonIsActive:   
+                            l = len(sounds)
+                            t = currentTime
+                            for s in range(l):
+                                v = int(parts[1+s])
+                                (sd, su) = sounds[s]
+                                (fd, fu) = soundsFlags[s]
+                                (lowLevel,highLevel) = soundsLevels[s]
+                                """
+                                if setup == True:
+                                    if keyboard.is_pressed('s'):  # if key 'q' is pressed 
+                                            
+                                            print('starting!')
+                                            for d in range(l):
+                                                print( soundsLevels[d] )
+                                            time.sleep(3)
+                                            setup = False
+
+                                    if lowLevel == 0:
+                                        lowLevel = v
+                                    if highLevel == 0:
+                                        highLevel = v
+                                    if v < lowLevel :
+                                        lowLevel = v
+                                    elif v > highLevel :
+                                        highLevel = v
+
+                                    soundsLevels[s] = (lowLevel, highLevel)
+                                    continue
+                                """
+                                if  (fd == False or soundLastTime[s] < t-400) and v < lowLevel  :
+                                    fd = True
+                                    soundsFlags[s] = (fd,fu)
+                                    print("<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<")
+                                    #winsound.PlaySound(memoryRight, winsound.SND_MEMORY | winsound.SND_NOWAIT )
+                                    #winsound.PlaySound(memoryRight, winsound.SND_NOSTOP | winsound.SND_MEMORY )
+                                    pygame.mixer.find_channel().play(sd)
+                                    soundLastTime[s] = t
+                                    #ser.write(b'a')
+                                elif fd == True and v > lowLevel:
+                                    fd = False
+                                    soundsFlags[s] = (fd, fu)
+
+                            
+                                if (fu == False or soundLastTime[s] < t-400) and  v > highLevel:
+                                    fu =True
+                                    soundsFlags[s] = (fd, fu)
+                                    
+                                    print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
+                                    pygame.mixer.find_channel().play(su)
+                                    soundLastTime[s] = int(parts[0])
+                                    
+                                    #winsound.PlaySound("C:\\projects\\gestures\\python\\reader\\right.wav", winsound.SND_ASYNC |  winsound.SND_FILENAME)
+
+                                elif fu == True and v < highLevel:
+                                    fu = False
+                                    soundsFlags[s] = (fd, fu)
+                
+                    except Exception as e1:
+                        print(f"{e1} s:{s}")
+                        
+                    #this should be the last line
+                    previousTime = currentTime                    
                     
                 else: 
-                    print( f"len: {len(parts)}" )
+                    print( f"len: {len(parts)}  {message}" )
                 message = ""
+                
     except Exception as e:
-        print(f'error outer:{e}')    
+        print(f'error outer:{e}') 
+        exit(1)   
     #    #winsound.PlaySound("C://projects//gestures//python//reader//mixkit-drum-and-percussion-545.wav", False)
     #elif near == True and int(msg) > 17 : 
     #    near = False
