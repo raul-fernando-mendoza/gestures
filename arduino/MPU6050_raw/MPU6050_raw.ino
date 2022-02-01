@@ -1,15 +1,13 @@
 #include "TinyWireM.h"
+// to be able to send data at 115200 to BLT-05 you need to AT+BAUD8 to the BLT-05 using the 3 volts in the usb to serial
+// +BAUD=115200
+ 
 #define TX_PIN PB4
-#include "ATtinySerialOut.hpp"
 #include <curveFitting.h>
 
 #define PIN_OUT 3
 #define PIN_INPUT 1
-#define MAX_LOG_SIZE 5
-bool debugging = false;
-int logTimes[MAX_LOG_SIZE];
-int logValues[MAX_LOG_SIZE];
-byte logIdx = 0;
+
 
 #define RX    -1   // *** D3, Pin 2 rmh remove 3 as RX 
 #define TX    4   // *** D4, Pin 3
@@ -52,7 +50,7 @@ void setup() {
   sei(); // Enable interrupts
 */  
   initTXPin();
- // swsri.print("Setup speed to:9600");
+ // swsri.print("Setup speed to:115200");
    
   TinyWireM.begin();
 
@@ -78,51 +76,31 @@ void loop() {
   getAccel();
   getGyro();
   
+    
+  Serial.print(millis());
+  Serial.print("\t");
+  Serial.print(gyroX);
+  Serial.print("\t");
+  Serial.print(gyroY);
+  Serial.print("\t");
+  Serial.print(gyroZ);
+  Serial.print("\t");
+  Serial.print(accelX);
+  Serial.print("\t");
+  Serial.print(accelY);
+  Serial.print("\t");
+  Serial.print(accelZ);
+  Serial.print("\t");
+
   int buttonStatus = digitalRead(PIN_INPUT);
-  if( buttonStatus == 0 && debugging == false){      
-      debugging = true;
-      logIdx = 0;      
-  }
-  else if( debugging == true && logIdx < MAX_LOG_SIZE){
-    logTimes[logIdx] = millis();  
-    logValues[logIdx] = gyroX;
-    logIdx++;   
-  }
-  else if (debugging == true && logIdx >= MAX_LOG_SIZE){
-    printLog();
-    debugging = false;
-  }
+  Serial.print(buttonStatus);  
+  Serial.println();
 
   if(  millis() - 1000 > ledLastChangedTime){
     led = !led;
     digitalWrite(PIN_OUT, led );
     ledLastChangedTime = millis();
-  }
-}
-void printLog(){
-  for(byte i=0; i<MAX_LOG_SIZE; i++){ 
-    Serial.print(logTimes[i]);   
-    Serial.print("\t");
-    Serial.println(logValues[i]);   
-  }
-  char buf[100];
-  int xpower = 3;
-  int order = 3;  
-  double coeffs[order+1];
-  int ret = fitCurve(order, MAX_LOG_SIZE, logTimes, logValues, sizeof(coeffs)/sizeof(double), coeffs);
-  
-  if (ret == 0){ //Returned value is 0 if no error
-    uint8_t c = 'a';
-    Serial.println("C:");
-    for (int i = 0; i < sizeof(coeffs)/sizeof(double); i++){
-      snprintf(buf, 100, "%c=",c++);
-      Serial.print(buf);
-      Serial.print(coeffs[i]);
-      Serial.print('\t');
-    }
-    Serial.println("");
-  }
-  
+  }  
 }
 
 void getAccel() {
