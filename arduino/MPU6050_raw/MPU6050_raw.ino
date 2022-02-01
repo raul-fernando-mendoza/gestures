@@ -120,6 +120,7 @@ void printLog(){
       Serial.print(coeffs[i]);
       Serial.print('\t');
     }
+    Serial.println("");
   }
   
 }
