@@ -1,12 +1,19 @@
 #include "TinyWireM.h"
-#include "SoftwareSerial.h"
+#define TX_PIN PB4
+#include "ATtinySerialOut.hpp"
+#include <curveFitting.h>
 
 #define PIN_OUT 3
 #define PIN_INPUT 1
+#define MAX_LOG_SIZE 5
+bool debugging = false;
+int logTimes[MAX_LOG_SIZE];
+int logValues[MAX_LOG_SIZE];
+byte logIdx = 0;
 
 #define RX    -1   // *** D3, Pin 2 rmh remove 3 as RX 
 #define TX    4   // *** D4, Pin 3
-SoftwareSerial swsri(RX,TX);
+
 
 // #define DEBUG 1  // - uncomment this line to display accel/gyro values
 #ifdef DEBUG
@@ -21,26 +28,35 @@ int led = 1;
 unsigned long ledLastChangedTime = 0L;
 
 void setup() {
-
+  
   pinMode(PIN_OUT, OUTPUT);
   pinMode(PIN_INPUT, INPUT);
+  
+/*
+  //clock speed to 1 MZ
+  cli(); // Disable interrupts
+  CLKPR = (1<<CLKPCE); // Prescaler enable
+  CLKPR = ((1<<CLKPS1) | (1<<CLKPS0)); // Clock division factor 8 (0011)
+  sei(); // Enable interrupts
+*/
   for(int i=0;i<3;i++){
     digitalWrite(PIN_OUT, HIGH); // sets the digital pin 13 on
-    delay(1000);            // waits for a second
+    delay(500);            // waits for a second
     digitalWrite(PIN_OUT, LOW);  // sets the digital pin 13 off
-    delay(1000);            // waits for a second
+    delay(500);            // waits for a second
   }  
-  swsri.begin(115200);
-
-  for(int i=0;i<2;i++){
-    digitalWrite(PIN_OUT, HIGH); // sets the digital pin 13 on
-    delay(1000);            // waits for a second
-    digitalWrite(PIN_OUT, LOW);  // sets the digital pin 13 off
-    delay(1000);            // waits for a second
-  }    
+/* set clock to max speed
+  cli(); // Disable interrupts
+  CLKPR = (1<<CLKPCE); // Prescaler enable
+  CLKPR = 0; // Clock division factor 1 (0000)
+  sei(); // Enable interrupts
+*/  
+  initTXPin();
+ // swsri.print("Setup speed to:9600");
+   
   TinyWireM.begin();
 
-  swsri.println("Setup");
+  Serial.println("Setup");
   // We need to do three things.  1. Disable sleep mode on the MPU (it activates on powerup).  2. Set the scale of the Gyro.  3. Set the scale of the accelerometer
   // We do this by sending 2 bytes for each:  Register Address & Value
   TinyWireM.beginTransmission(mpu); 
@@ -55,42 +71,57 @@ void setup() {
   TinyWireM.write(0x1C); // Accelerometer config register
   TinyWireM.write(0b00000000); // 2g range +/- (default)
   TinyWireM.endTransmission();
-  swsri.println("Starting v1");
+  //swsri.println("Starting v1");
 }
-
-
-
 
 void loop() {
   getAccel();
   getGyro();
   
-    
-  swsri.print(millis());
-  swsri.print("\t");
-  swsri.print(gyroX);
-  swsri.print("\t");
-  swsri.print(gyroY);
-  swsri.print("\t");
-  swsri.print(gyroZ);
-  swsri.print("\t");
-  swsri.print(accelX);
-  swsri.print("\t");
-  swsri.print(accelY);
-  swsri.print("\t");
-  swsri.print(accelZ);
-  swsri.print("\t");
-
   int buttonStatus = digitalRead(PIN_INPUT);
-  swsri.print(buttonStatus);  
-  swsri.println();
+  if( buttonStatus == 0 && debugging == false){      
+      debugging = true;
+      logIdx = 0;      
+  }
+  else if( debugging == true && logIdx < MAX_LOG_SIZE){
+    logTimes[logIdx] = millis();  
+    logValues[logIdx] = gyroX;
+    logIdx++;   
+  }
+  else if (debugging == true && logIdx >= MAX_LOG_SIZE){
+    printLog();
+    debugging = false;
+  }
 
   if(  millis() - 1000 > ledLastChangedTime){
     led = !led;
     digitalWrite(PIN_OUT, led );
     ledLastChangedTime = millis();
   }
- 
+}
+void printLog(){
+  for(byte i=0; i<MAX_LOG_SIZE; i++){ 
+    Serial.print(logTimes[i]);   
+    Serial.print("\t");
+    Serial.println(logValues[i]);   
+  }
+  char buf[100];
+  int xpower = 3;
+  int order = 3;  
+  double coeffs[order+1];
+  int ret = fitCurve(order, MAX_LOG_SIZE, logTimes, logValues, sizeof(coeffs)/sizeof(double), coeffs);
+  
+  if (ret == 0){ //Returned value is 0 if no error
+    uint8_t c = 'a';
+    Serial.println("C:");
+    for (int i = 0; i < sizeof(coeffs)/sizeof(double); i++){
+      snprintf(buf, 100, "%c=",c++);
+      Serial.print(buf);
+      Serial.print(coeffs[i]);
+      Serial.print('\t');
+    }
+  }
+  
 }
 
 void getAccel() {
@@ -118,24 +149,4 @@ void getGyro() {
   gyroY |= TinyWireM.read();     // lower
   gyroZ = TinyWireM.read() << 8; // Get Z upper byte first
   gyroZ |= TinyWireM.read();     // lower
-}
-
-bool shaken() {
-  if ((abs(accelX) > 20000) || (abs(accelY) > 20000) ||  (abs(accelZ) > 32760)) {
-  return true;
-  }
-  else return false;
-  }
-
-bool stirred() {
-  gyroXold = gyroX;    // Save current Gyro settings...
-  gyroYold = gyroY;
- 
- gyroZold = gyroZ;
-  getGyro();  // get a second reading to compare with the last to see if we're moving
-  //  300 is just a number to filter noise-level fluxuations .. DYOR
-  if (((gyroX - gyroXold) > 300) || ((gyroY - gyroYold) > 300) ||  ((gyroZ - gyroZold) > 300)) {
-    return true;
-  }
-  else return false;
 }

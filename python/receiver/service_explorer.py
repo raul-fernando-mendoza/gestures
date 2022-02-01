@@ -16,8 +16,8 @@ import logging
 
 from bleak import BleakClient
 
-#ADDRESS = "A8:1B:6A:B3:53:86" #test
-ADDRESS = "50:F1:4A:6E:67:6D" #soldado 
+ADDRESS = "A8:1B:6A:B3:53:86"  #bluetooth in protoboard password 123456
+#ADDRESS = "50:F1:4A:6E:67:6D" #soldado 
 
 
 async def run(address, debug=False):
