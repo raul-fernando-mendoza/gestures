@@ -153,7 +153,7 @@ lastpos = [
         ]
 
 buttonLastPushTime = 0
-buttonIsActive = False
+buttonIsActive = True
 
 import queue
 q1 = queue.Queue()
@@ -200,9 +200,15 @@ max_time = 0
 min_value = 0
 max_value = 0 
 MIN_DIFF = 3000
+rebound_time = 0 
+rebound_value = 0
+
+continue_reading = True
+
 # define the true objective function
 def objective(x, a, b, c):
-	return numpy.sin((x * (3.1416))/(max_time)  + a) * (max_value-min_value) * b + c
+	#return numpy.sin((x * (3.1416))/(max_time)  + a) * (max_value-min_value) * b + c
+    return x*a + b
 
 
 def print_there(x, y, text):
@@ -269,6 +275,9 @@ def notification_handler(num:int, msg:bytearray):
     global min_value
     global max_value
     global MIN_DIFF 
+    global rebound_time
+    global rebound_value
+    global continue_reading
 
     
     TIME = 0
@@ -281,7 +290,7 @@ def notification_handler(num:int, msg:bytearray):
     BUTTON = 7  
 
     
-    MAX_READS = 30
+    MAX_READS = 5
 
     process = False
 
@@ -314,10 +323,12 @@ def notification_handler(num:int, msg:bytearray):
                         if j == TIME:
                             values[j] = int(parts[j])
                         elif j >= GIROX and j <=GIROZ:                            
-                            if setupNoiseLevelsUp[j-1] != None and int(parts[j]) > setupNoiseLevelsUp[j-1]:
+                            if setupNoiseLevelsUp[j-1] != None and int(parts[j]) >= setupNoiseLevelsUp[j-1]:
                                 values[j]  = (int(parts[j]) -setupNoiseLevelsUp[j-1]) #* (250.0/32768.0)  
-                            elif setupNoiseLevelsDown[j-1] != None and int(parts[j-1]) < setupNoiseLevelsDown[j-1]: 
+                            elif setupNoiseLevelsDown[j-1] != None and int(parts[j]) <= setupNoiseLevelsDown[j-1]: 
                                 values[j]  = (int(parts[j])- setupNoiseLevelsDown[j-1]) #* (250.0/32768.0)
+                            elif setupNoiseLevelsDown[j-1] != None and setupNoiseLevelsUp[j-1] != None and setupNoiseLevelsDown[j-1] <= int(parts[j]) and int(parts[j]) <= setupNoiseLevelsUp[j-1]:
+                                values[j]  = 0 
                             else:
                                 values[j]  = int(parts[j]) # * (250.0/32768.0)
                         elif j >=ACCEX and j <=ACCEZ:
@@ -325,6 +336,8 @@ def notification_handler(num:int, msg:bytearray):
                                 values[j]  = (int(parts[j]) -setupNoiseLevelsUp[j-1]) / 32768.0  
                             elif setupNoiseLevelsDown[j-1] != None and int(parts[j]) < setupNoiseLevelsDown[j-1]: 
                                 values[j]  = (int(parts[j])- setupNoiseLevelsDown[j-1]) / 32768.0
+                            elif setupNoiseLevelsDown[j-1] != None and setupNoiseLevelsUp[j-1] != None and setupNoiseLevelsDown[j-1] <= int(parts[j]) and int(parts[j]) <= setupNoiseLevelsUp[j-1]:
+                                values[j]  = 0
                             else:
                                 values[j]  = int(parts[j]) / 32768.0
                         elif j == BUTTON:
@@ -352,10 +365,7 @@ def notification_handler(num:int, msg:bytearray):
                         startTime = fitting_x_values[0]
                         for j in range(len(fitting_times_converted)):
                             fitting_times_converted[j] = fitting_x_values[j] - startTime
-                            if j == 0 :
-                                fitting_values_converted[j] = fitting_times_converted[j+1] * fitting_y_values[j]
-                            else:
-                                fitting_values_converted[j] = (fitting_times_converted[j] - fitting_times_converted[j-1]) * fitting_y_values[j]
+                            fitting_values_converted[j] = fitting_y_values[j]
                         
                         max_time = max(fitting_times_converted)
                         min_value = min(fitting_values_converted)
@@ -368,9 +378,9 @@ def notification_handler(num:int, msg:bytearray):
                         currentValue = objective( lastTime, a, b , c)
                         nextValue = objective( lastTime + 10, a, b , c)
                         
-                        if nextValue > currentValue:
+                        if int(nextValue) > int(currentValue):
                             fitting_current_slop = 1
-                        elif nextValue < currentValue: 
+                        elif int(nextValue) < int(currentValue): 
                             fitting_current_slop = -1 
                         else: 
                             fitting_current_slop = 0
@@ -378,11 +388,21 @@ def notification_handler(num:int, msg:bytearray):
                         if values[GIROZ] < fitting_min:
                             fitting_min = values[GIROZ]
                         elif values[GIROZ] > fitting_max:
-                            fitting_max = values[GIROZ]                             
+                            fitting_max = values[GIROZ]
+
+                    if values[TIME] > rebound_time:
+                        rebound_value = 0   
+
+                    if values[TIME] > rebound_time and fitting_previous_slop == 1 and fitting_current_slop == -1:
+                        rebound_time = values[TIME] + 400
+                        rebound_value = -fitting_max * 0.5
+                    elif values[TIME] >  rebound_time and fitting_previous_slop == -1 and fitting_current_slop == 1:
+                        rebound_time = values[TIME] + 400
+                        rebound_value = -fitting_min * 0.5                       
 
                     if buttonIsActive:
                         #print(f"{parts[0]}\t{parts[1]}\t{parts[2]}\t{parts[3]}\t{parts[4]}\t{parts[5]}\t{parts[6]}\t{parts[7]}\t{int(currentValue):04}\t{int(nextValue):04}\t{fitting_current_slop}\t{fitting_max:05}\t{fitting_min:05}")
-                        print(f"{values[0]}\t{values[1]:06.1f}\t{values[2]:06.1f}\t{values[3]:06.1f}\t{values[4]:06.1f}\t{values[5]:06.1f}\t{values[6]:06.1f}\t{values[7]}\t{int(currentValue):05}\t{int(nextValue):05}\t{fitting_current_slop}\t{fitting_max:05.1f}\t{fitting_min:05.1f}")
+                        print(f"{values[0]}\t{values[1]:06.1f}\t{values[2]:06.1f}\t{values[3]:06.1f}\t{values[4]:06.1f}\t{values[5]:06.1f}\t{values[6]:06.1f}\t{values[7]}\t{int(currentValue):05}\t{int(nextValue):05}\t{fitting_current_slop}\t{fitting_max}\t{fitting_min}\t{rebound_value:05.1f}\t{rebound_time}")
                     
                     if previousTime == 0:
                             previousTime = currentTime
@@ -416,7 +436,7 @@ def notification_handler(num:int, msg:bytearray):
                         win32gui.LineTo(dc,  screenWidth,  int(screenHeight/2 - MIN_DIFF * (250.0/32768.0)) )
                         
 
-                    #imprime los valores raw
+                    #imprime los valores raw in text
                     win32gui.SelectObject(dc, blackColor)
 
                     fontSize = 13
@@ -483,6 +503,9 @@ def notification_handler(num:int, msg:bytearray):
 
                     if keyboard.is_pressed('d'):   
                         MIN_DIFF -= 10
+
+                    if keyboard.is_pressed('e'):
+                        continue_reading = False
 
                     if setup == True and setupNumReads<100:
                         for n in range(len(setupNoiseLevelsDown)):
@@ -562,21 +585,21 @@ def notification_handler(num:int, msg:bytearray):
                         
                     """
 
-
-                    
+                  
                     #Play sounds                          
                     try:    
                         if buttonIsActive:   
                             (sd, su) = sounds[0]
-                            if  (fitting_previous_slop == -1 and fitting_current_slop == 1 and fitting_min<-MIN_DIFF and fitting_max-fitting_min> MIN_DIFF) :
+                            if  (fitting_previous_slop == -1 and fitting_current_slop == 1 and fitting_min<-MIN_DIFF and (values[TIME] > rebound_time or values[GIROZ] < rebound_value) ) :
                                 print(f"<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< {fitting_max} - {fitting_min} >")
                                 #winsound.PlaySound(memoryRight, winsound.SND_MEMORY | winsound.SND_NOWAIT )
                                 #winsound.PlaySound(memoryRight, winsound.SND_NOSTOP | winsound.SND_MEMORY )
                                 pygame.mixer.find_channel().play(sd)
 
-                            if (fitting_previous_slop == 1 and fitting_current_slop == -1 and fitting_max>MIN_DIFF and fitting_max-fitting_min> MIN_DIFF):
+                            if (fitting_previous_slop == 1 and fitting_current_slop == -1 and fitting_max>MIN_DIFF and (values[TIME] > rebound_time or values[GIROZ] > rebound_value) ):
                                 print(f">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> {fitting_max} - {fitting_min}")
                                 pygame.mixer.find_channel().play(su)
+
                     except Exception as e1:
                         print(f"SOUND {e1}")
                     
@@ -594,8 +617,9 @@ def notification_handler(num:int, msg:bytearray):
                 message = ""
                 
     except Exception as e:
-        print(f'error outer:{e}') 
-        #sexit(1)   
+        print(f'error outer:{e}')
+     
+          
     #    #winsound.PlaySound("C://projects//gestures//python//reader//mixkit-drum-and-percussion-545.wav", False)
     #elif near == True and int(msg) > 17 : 
     #    near = False
@@ -603,6 +627,7 @@ def notification_handler(num:int, msg:bytearray):
 
 async def print_services(mac_addr: str):
     global x
+    global continue_reading
     async with BleakClient(mac_addr) as client:
         svcs = await client.get_services()
         print("Services:")
@@ -618,12 +643,14 @@ async def print_services(mac_addr: str):
         
             
             try:
-                while True:
+                while continue_reading:
                     await asyncio.sleep(0.1, loop=loop)  # Sleeping just to make sure the response is not missed...;
-                    
+            except Exception as e:
+                print("EXEPTION" + str(e) )       
             except KeyboardInterrupt:
-                   await client.stop_notify(UART_RX_CHAR_UUID)            
-            
+                   await client.stop_notify(UART_RX_CHAR_UUID) 
+        except Exception as e:
+            print("EXEPTION" + str(e) ) 
         except BleakError as e:
             print("BleakError" + str(e) )
         except TimeoutError as e:
