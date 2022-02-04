@@ -1,10 +1,5 @@
 """
-Services
-----------------
-
-An example showing how to fetch all services and print them.
-
-Updated on 2019-03-25 by hbldh <henrik.blidh@nedomkull.com>
+using curve fitting ver 1.0
 
 """
 
