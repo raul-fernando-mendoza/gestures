@@ -3,7 +3,7 @@
 // +BAUD=115200
  
 #define TX_PIN PB4
-#include <curveFitting.h>
+#include "ATtinySerialOut.hpp"
 
 #define PIN_OUT 3
 #define PIN_INPUT 1
