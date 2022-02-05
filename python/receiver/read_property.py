@@ -198,7 +198,19 @@ MIN_DIFF = 3000
 rebound_time = 0 
 rebound_value = 0
 
+axis_current = 0
+
 continue_reading = True
+
+LOG_MAX = 5
+log_valuesX = [] 
+log_valuesY = [] 
+log_valuesZ = [] 
+log_values = [log_valuesX, log_valuesY, log_valuesZ]  
+log_idx = 0
+
+canPlayDown = True
+canPlayUp = True
 
 # define the true objective function
 def objective(x, a, b, c):
@@ -273,16 +285,22 @@ def notification_handler(num:int, msg:bytearray):
     global rebound_time
     global rebound_value
     global continue_reading
+    global axis_current
+    global log_values
+    global LOG_MAX
+    global log_idx
+    global canPlayDown
+    global canPlayUp
 
     
-    TIME = 0
-    GIROX = 1
-    GIROY = 2
-    GIROZ = 3
-    ACCEX = 4
-    ACCEY = 5
-    ACCEZ = 6  
-    BUTTON = 7  
+    
+    GIROX = 0
+    GIROY = 1
+    GIROZ = 2
+    ACCEX = 3
+    ACCEY = 4
+    ACCEZ = 5  
+  
 
     
     MAX_READS = 5
@@ -310,45 +328,75 @@ def notification_handler(num:int, msg:bytearray):
 
             if process == True:
                 
-                parts = message.split("\t")
-                if( len(parts) == 8):
+                parts_str = message.split("\t")
+               
+                if( len(parts_str) == 8):
+                    parts = parts_str[1:7]
+
+                    currentTime = int(parts_str[0])
+                    buttonStatus = int(parts_str[7])                    
                     #print_there( 1,1,f"{parts}")                   
-                    values = [0] * 8
-                    for j in range(0,8):
-                        if j == TIME:
-                            values[j] = int(parts[j])
-                        elif j >= GIROX and j <=GIROZ:                            
-                            if setupNoiseLevelsUp[j-1] != None and int(parts[j]) >= setupNoiseLevelsUp[j-1]:
-                                values[j]  = (int(parts[j]) -setupNoiseLevelsUp[j-1]) #* (250.0/32768.0)  
-                            elif setupNoiseLevelsDown[j-1] != None and int(parts[j]) <= setupNoiseLevelsDown[j-1]: 
-                                values[j]  = (int(parts[j])- setupNoiseLevelsDown[j-1]) #* (250.0/32768.0)
-                            elif setupNoiseLevelsDown[j-1] != None and setupNoiseLevelsUp[j-1] != None and setupNoiseLevelsDown[j-1] <= int(parts[j]) and int(parts[j]) <= setupNoiseLevelsUp[j-1]:
+                    values = [0] * 6
+                    for j in range(0,6):
+                        if j >= GIROX and j <=GIROZ:                            
+                            if setupNoiseLevelsUp[j] != None and int(parts[j]) >= setupNoiseLevelsUp[j]:
+                                values[j]  = (int(parts[j]) -setupNoiseLevelsUp[j]) #* (250.0/32768.0)  
+                            elif setupNoiseLevelsDown[j] != None and int(parts[j]) <= setupNoiseLevelsDown[j]: 
+                                values[j]  = (int(parts[j])- setupNoiseLevelsDown[j]) #* (250.0/32768.0)
+                            elif setupNoiseLevelsDown[j] != None and setupNoiseLevelsUp[j] != None and setupNoiseLevelsDown[j] <= int(parts[j]) and int(parts[j]) <= setupNoiseLevelsUp[j]:
                                 values[j]  = 0 
                             else:
                                 values[j]  = int(parts[j]) # * (250.0/32768.0)
                         elif j >=ACCEX and j <=ACCEZ:
-                            if setupNoiseLevelsUp[j-1] != None and int(parts[j]) > setupNoiseLevelsUp[j-1]:
-                                values[j]  = (int(parts[j]) -setupNoiseLevelsUp[j-1]) / 32768.0  
-                            elif setupNoiseLevelsDown[j-1] != None and int(parts[j]) < setupNoiseLevelsDown[j-1]: 
-                                values[j]  = (int(parts[j])- setupNoiseLevelsDown[j-1]) / 32768.0
-                            elif setupNoiseLevelsDown[j-1] != None and setupNoiseLevelsUp[j-1] != None and setupNoiseLevelsDown[j-1] <= int(parts[j]) and int(parts[j]) <= setupNoiseLevelsUp[j-1]:
+                            if setupNoiseLevelsUp[j] != None and int(parts[j]) > setupNoiseLevelsUp[j]:
+                                values[j]  = (int(parts[j]) -setupNoiseLevelsUp[j])
+                            elif setupNoiseLevelsDown[j] != None and int(parts[j]) < setupNoiseLevelsDown[j]: 
+                                values[j]  = (int(parts[j])- setupNoiseLevelsDown[j]) 
+                            elif setupNoiseLevelsDown[j] != None and setupNoiseLevelsUp[j] != None and setupNoiseLevelsDown[j] <= int(parts[j]) and int(parts[j]) <= setupNoiseLevelsUp[j]:
                                 values[j]  = 0
                             else:
-                                values[j]  = int(parts[j]) / 32768.0
-                        elif j == BUTTON:
-                            values[BUTTON] = int(parts[BUTTON])
+                                values[j]  = int(parts[j])  # / 32768.0  
+                 
 
-                     
-                    currentTime = values[TIME]
-
-                    buttonStatus = values[BUTTON]
-
-                    #add fitting values
-                    if len( fitting_x_values) >= MAX_READS:
+                    #append the read values to the log
+                    if len( log_values[0] ) >= MAX_READS:
+                        del log_values[0][0]
+                        del log_values[1][0]
+                        del log_values[2][0]
                         del fitting_x_values[0]
-                        del fitting_y_values[0]
+
+                    log_values[0].append(values[GIROX])
+                    log_values[1].append(values[GIROY])
+                    log_values[2].append(values[GIROZ])
                     fitting_x_values.append(currentTime)
-                    fitting_y_values.append(values[GIROZ])  
+
+                    #find out the new active axis                    
+                    axis_new = 0
+                    for j in range(1,3):
+                        axis_sum = 0
+                        j_sum = 0
+                        for k in range(len(log_values[j])):
+                            axis_sum += abs(log_values[axis_new][k])
+                            j_sum += abs(log_values[j][k])
+                        if j_sum > axis_sum:
+                            axis_new = j 
+                    if axis_current != axis_new:
+                        axis_current = axis_new 
+                        fitting_min = values[axis_current]
+                        fitting_max = values[axis_current]
+                        fitting_current_slop = 0
+                        canPlayDown = True
+                        canPlayUp = True
+                        fitting_y_values= log_values[axis_current] 
+                             
+
+                    #canPlay prevent the playing of more than 1 time even if the movement occilate before crossing
+                    if values[axis_current] > -MIN_DIFF : 
+                        canPlayDown = True
+                    if values[axis_current] < MIN_DIFF :
+                        canPlayUp = True                        
+
+ 
 
                     currentValue = 0.0
                     nextValue = 0.0
@@ -373,31 +421,25 @@ def notification_handler(num:int, msg:bytearray):
                         currentValue = objective( lastTime, a, b , c)
                         nextValue = objective( lastTime + 10, a, b , c)
                         
+                        #calculate the slop 
                         if int(nextValue) > int(currentValue):
                             fitting_current_slop = 1
                         elif int(nextValue) < int(currentValue): 
                             fitting_current_slop = -1 
                         else: 
                             fitting_current_slop = 0
-                    if fitting_current_slop == fitting_previous_slop:
-                        if values[GIROZ] < fitting_min:
-                            fitting_min = values[GIROZ]
-                        elif values[GIROZ] > fitting_max:
-                            fitting_max = values[GIROZ]
 
-                    if values[TIME] > rebound_time:
-                        rebound_value = 0   
-
-                    if values[TIME] > rebound_time and fitting_previous_slop == 1 and fitting_current_slop == -1:
-                        rebound_time = values[TIME] + 400
-                        rebound_value = -fitting_max * 0.5
-                    elif values[TIME] >  rebound_time and fitting_previous_slop == -1 and fitting_current_slop == 1:
-                        rebound_time = values[TIME] + 400
-                        rebound_value = -fitting_min * 0.5                       
+                        #calculate fitting min and max will be used to know the amplitud of the movement
+                        if fitting_current_slop == fitting_previous_slop:
+                            if values[axis_current] < fitting_min:
+                                fitting_min = values[axis_current]
+                            if values[axis_current] > fitting_max:
+                                fitting_max = values[axis_current]
+                                                 
 
                     if buttonIsActive:
                         #print(f"{parts[0]}\t{parts[1]}\t{parts[2]}\t{parts[3]}\t{parts[4]}\t{parts[5]}\t{parts[6]}\t{parts[7]}\t{int(currentValue):04}\t{int(nextValue):04}\t{fitting_current_slop}\t{fitting_max:05}\t{fitting_min:05}")
-                        print(f"{values[0]}\t{values[1]:06.1f}\t{values[2]:06.1f}\t{values[3]:06.1f}\t{values[4]:06.1f}\t{values[5]:06.1f}\t{values[6]:06.1f}\t{values[7]}\t{int(currentValue):05}\t{int(nextValue):05}\t{fitting_current_slop}\t{fitting_max}\t{fitting_min}\t{rebound_value:05.1f}\t{rebound_time}")
+                        print(f"{currentTime}\t{values[0]:05d}\t{values[1]:05d}\t{values[2]:05d}\t{values[3]:05d}\t{values[4]:05d}\t{values[5]:05d}\t{buttonStatus}\t{int(currentValue):05}\t{int(nextValue):05} {fitting_current_slop} {fitting_max} {fitting_min} {rebound_value} t:{rebound_time} {axis_current} d:{canPlayDown} u:{canPlayUp}")
                     
                     if previousTime == 0:
                             previousTime = currentTime
@@ -450,14 +492,10 @@ def notification_handler(num:int, msg:bytearray):
                     win32gui.DrawText(dc, f"accelX:{values[ACCEX]:05}" , -1, (400,0,100,100) , win32con.DT_NOCLIP | win32con.DT_VCENTER | win32con.DT_EXPANDTABS )
                     win32gui.DrawText(dc, f"accelY:{values[ACCEY]:05}" , -1, (500,0,100,100) , win32con.DT_NOCLIP | win32con.DT_VCENTER | win32con.DT_EXPANDTABS )
                     win32gui.DrawText(dc, f"accelZ:{values[ACCEZ]:05}" , -1, (600,0,100,100) , win32con.DT_NOCLIP | win32con.DT_VCENTER | win32con.DT_EXPANDTABS )
-                    win32gui.DrawText(dc, f"str_buttonStatus:{values[BUTTON]}" , -1, (700,0,100,100) , win32con.DT_NOCLIP | win32con.DT_VCENTER | win32con.DT_EXPANDTABS )
-
-
-#                    dancer =  (int(currentPosX) , int(currentPosY), int(currentPosX + 20), int(currentPosY + 20))
-#                    win32gui.FillRect(dc, dancer, redBrush)
-
-
-
+                    win32gui.DrawText(dc, f"str_buttonStatus:{buttonStatus}" , -1, (700,0,100,100) , win32con.DT_NOCLIP | win32con.DT_VCENTER | win32con.DT_EXPANDTABS )
+                    win32gui.DrawText(dc, f"MIN_DIFF:{MIN_DIFF}" , -1, (0,100,100,100) , win32con.DT_NOCLIP | win32con.DT_VCENTER | win32con.DT_EXPANDTABS )
+                    #dancer =  (int(currentPosX) , int(currentPosY), int(currentPosX + 20), int(currentPosY + 20))
+                    #win32gui.FillRect(dc, dancer, redBrush)
                     #grafica los valores escalados
                     if buttonIsActive:    
                         try:
@@ -468,11 +506,11 @@ def notification_handler(num:int, msg:bytearray):
                                 win32gui.SelectObject(dc, colors[j])
                                 val:int = 0
                                 if j >=0 and j<3 : #giroscopio
-                                    val = int(parts[j+1]) * (250.0/32768.0)
+                                    val = int(parts[j]) * (250.0/32768.0)
                                 if j >=3 and j<=5 : #acelerometer
-                                    val = (int(parts[j+1]) / 32768.0)*100
+                                    val = (int(parts[j]) / 32768.0)*100
                                 if j == 6:                                 
-                                    val = int(parts[j+1]) * 100
+                                    val = buttonStatus * 100
 
                                 win32gui.LineTo(dc, i, int(val + screenHeight/2 ) )
                                 lastpos[j] = (i,int(val + int(screenHeight/2)) )
@@ -486,7 +524,7 @@ def notification_handler(num:int, msg:bytearray):
                         buttonLastPushTime = currentTime
                         buttonIsActive = not buttonIsActive
                         print("button changed")
-                        time.sleep(2)
+                        #time.sleep(2)
 
                     if keyboard.is_pressed('s') and setup == False:   
                         setup = True
@@ -494,17 +532,17 @@ def notification_handler(num:int, msg:bytearray):
                         print('Setup starting!')
 
                     if keyboard.is_pressed('u'):   
-                        MIN_DIFF += 10
+                        MIN_DIFF += 5
 
                     if keyboard.is_pressed('d'):   
-                        MIN_DIFF -= 10
+                        MIN_DIFF -= 5
 
                     if keyboard.is_pressed('e'):
                         continue_reading = False
 
                     if setup == True and setupNumReads<100:
                         for n in range(len(setupNoiseLevelsDown)):
-                            v = int(parts[n+1])
+                            v = int(parts[n])
 
                             if setupNoiseLevelsDown[n] == None:
                                 setupNoiseLevelsDown[n] = v
@@ -521,7 +559,7 @@ def notification_handler(num:int, msg:bytearray):
                         print("noise levels")
                         for n in range(len(setupNoiseLevelsUp)):
                             print(f"{setupNoiseLevelsDown[n]:05} - {setupNoiseLevelsUp[n]:05}")
-                        time.sleep(5)
+                        #time.sleep(5)
                     """
                     # lee 100 valores los agrega y saca el promedio en setupAverages                    
                     if keyboard.is_pressed('i') and setup == False:
@@ -584,16 +622,35 @@ def notification_handler(num:int, msg:bytearray):
                     #Play sounds                          
                     try:    
                         if buttonIsActive:   
-                            (sd, su) = sounds[0]
-                            if  (fitting_previous_slop == -1 and fitting_current_slop == 1 and fitting_min<-MIN_DIFF and (values[TIME] > rebound_time or values[GIROZ] < rebound_value) ) :
+                            (sd, su) = sounds[axis_current]
+
+                            #prevent playing on rebound 
+                            if currentTime > rebound_time:
+                                rebound_value = 0   
+                                rebound_time = 0
+
+                            if  canPlayDown == True and fitting_previous_slop == -1 and fitting_current_slop == 1 and fitting_min<-MIN_DIFF and currentTime > rebound_time:
                                 print(f"<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< {fitting_max} - {fitting_min} >")
                                 #winsound.PlaySound(memoryRight, winsound.SND_MEMORY | winsound.SND_NOWAIT )
                                 #winsound.PlaySound(memoryRight, winsound.SND_NOSTOP | winsound.SND_MEMORY )
                                 pygame.mixer.find_channel().play(sd)
+                                canPlayDown = False
 
-                            if (fitting_previous_slop == 1 and fitting_current_slop == -1 and fitting_max>MIN_DIFF and (values[TIME] > rebound_time or values[GIROZ] > rebound_value) ):
+                                #set rebound
+                                rebound_time = currentTime + 300
+                                rebound_value = -fitting_min * 0.5
+                                
+
+                            if canPlayUp == True and fitting_previous_slop == 1 and fitting_current_slop == -1 and fitting_max>MIN_DIFF and currentTime > rebound_time:
                                 print(f">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> {fitting_max} - {fitting_min}")
                                 pygame.mixer.find_channel().play(su)
+                                canPlayUp = False
+
+                                #set rebound
+                                rebound_time = currentTime + 300
+                                rebound_value = -fitting_max * 0.5 
+
+
 
                     except Exception as e1:
                         print(f"SOUND {e1}")
@@ -608,7 +665,7 @@ def notification_handler(num:int, msg:bytearray):
                     fitting_previous_slop = fitting_current_slop                                    
                     
                 else: 
-                    print( f"len: {len(parts)}  {message}" )
+                    print( f"len: {len(parts_str)}  {message}" )
                 message = ""
                 
     except Exception as e:
