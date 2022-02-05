@@ -1,3 +1,5 @@
+The main file is read_property.py
+
 python -m pip install --upgrade pip
 
 #to install the playsound correct version
