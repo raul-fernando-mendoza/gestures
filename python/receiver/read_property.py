@@ -6,8 +6,6 @@ using curve fitting ver 1.0
 from os import read
 import sys
 import asyncio
-import platform
-import time
 
 from bleak import BleakClient
 from bleak.exc import BleakError
@@ -18,13 +16,11 @@ from win32api import GetSystemMetrics, Sleep
 import win32gui
 import win32api
 import win32con
-import serial
 import pygame
 import keyboard
-import math
 import numpy as np
 from scipy.optimize import curve_fit
-import numpy 
+
 
 ADDRESS = "A8:1B:6A:B3:53:86" #bluetooth MLT-BT05 in protoboard password 123456
 #ADDRESS = "50:F1:4A:6E:67:6D" #soldado 
