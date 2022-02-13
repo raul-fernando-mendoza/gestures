@@ -5,12 +5,12 @@
 #define TX_PIN PB4
 #include "ATtinySerialOut.hpp"
 
-#define PIN_OUT 3
-#define PIN_INPUT 1
+#define PIN_OUT PB1
+#define PIN_INPUT PB3
 
 
 #define RX    -1   // *** D3, Pin 2 rmh remove 3 as RX 
-#define TX    4   // *** D4, Pin 3
+#define TX    PB4   // *** D4, Pin 3
 
 
 // #define DEBUG 1  // - uncomment this line to display accel/gyro values
