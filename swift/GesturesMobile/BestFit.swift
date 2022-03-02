@@ -51,6 +51,42 @@ func findBestFit(_ x:[Double], _ y:[Double]) -> (Double,Double){
     let c = meanMW - m * meanDays
     return (m,c)
 }
+func findSlop(_ xint:[Int], _ yint:[Int]) -> (Double,Double){
+    var m:Double = 0.0
+    var c:Double = 0.0
+    var xs = 0
+    var ys = 0
+    for i in 0 ..< xint.count{
+        xs += xint[i]
+        ys += yint[i]
+    }
+    
+    //print("xs:\(xs) ys:\(ys) c:\(xint.count)")
+   
+    if xs == 0{
+        return (0.0,0.0)
+    }
+
+    let xm:Double = Double(xs) / Double(xint.count)
+    let ym:Double = Double(ys) / Double(yint.count)
+    
+    //print("promedio: xs:\(xm) ys:\(ym)")
+    
+    var t = 0.0
+    var xt = 0.0
+    for i in 0 ..< xint.count{
+        t +=  (Double(yint[i]) - xm) * (Double(xint[i]) - xm)
+        xt += (Double(xint[i]) - xm) * (Double(xint[i]) - xm)
+    }
+    //print("t:\(t) xt:\(xt)")
+    
+    m = t/xt
+    
+    c = ym - (m * xm)
+    
+    return (m,c)
+}
+    
 func CalculateNextValue(_ x: Double,_ m:Double,_ c:Double) -> Double {
     return m * x + c
 }

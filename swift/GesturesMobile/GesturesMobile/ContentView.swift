@@ -8,20 +8,47 @@
 import SwiftUI
 import SpriteKit
 
+struct Handler: MessageReceiver{
+    
+   mutating func message(_ msg: String) {
+       print(msg)
+   }
+   
+   func error(_ msg: String) {
+       
+   }
+   
+   func status(_ msg: String) {
+       
+   }
+}
+var handler = Handler()
+
+
 struct ContentView: View {
 
+    let gameScene =  GameScene()
+    
     
     var scene: SKScene{
-        let scene =  GameScene()
-        scene.size = CGSize(width: 300, height: 400)
-        scene.scaleMode = .fill
-        return scene
+        
+        gameScene.size = CGSize(width: 300, height: 300)
+       
+        //scene.scaleMode = .fill
+        return gameScene
     }
     var body: some View {
-        //Text("Hello, world!")
-        //    .padding()
-        SpriteView(scene:scene)
-            .frame(width:300, height:400)
+        VStack {
+            Button("Setup", action: setUp)
+            SpriteView(scene:scene)
+                .frame(width:300, height:300)
+                .border(Color.blue)
+                
+        }
+    }
+    func setUp(){
+        Log.debug("starting setup")
+        gameScene.setUp()
     }
 }
 

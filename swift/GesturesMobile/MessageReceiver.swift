@@ -8,7 +8,7 @@
 import Foundation
 
 protocol MessageReceiver{
-    func message(_ msg:String) -> Void
+    mutating func message(_ msg:String) -> Void
     func error(_ msg:String) -> Void
     func status(_ msg:String) -> Void
 }

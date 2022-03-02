@@ -3,7 +3,8 @@
 //  Sounder
 //
 //  Created by administrador on 27/12/21.
-//
+
+// Go to your Iphone Settings -> General -> Device Management and "trust" yourself as developer.
 
 import SpriteKit
 import GameplayKit
@@ -39,8 +40,9 @@ class GameScene: SKScene , MessageReceiver{
     
     private var message:String = ""
     
-    private var q = Queue()
-    
+    var q = Queue()
+    var b:BLE?
+
     /*
     let xUp = SKAction.playSoundFileNamed("python_sounds_dum.wav", waitForCompletion: false)
     var xUpPlaying = false
@@ -60,6 +62,10 @@ class GameScene: SKScene , MessageReceiver{
         statusLabel.text = msg
     }
     
+    public func setUp(){
+        q.startSetup()
+    }
+    
     
     func message(_ msg: String) {
         let split = msg.components(separatedBy: "\t")
@@ -74,35 +80,33 @@ class GameScene: SKScene , MessageReceiver{
                       let buttonStatus = Int(split[7]) {
                 
             let raw:[Int] = [ giroX, giroY, giroZ, accX, accY, accZ ]
+            Log.debug("\(timeCurrent) \(raw) \(buttonStatus)")
                 
-                
-            var g = q.processMessage(currentTime: timeCurrent, raw: raw,buttonStatus: buttonStatus)
+            let g = q.processMessage(currentTime: timeCurrent, raw: raw,buttonStatus: buttonStatus)
             setStatusMessage(g.message)
         }
         else{
-            if message.count > 0 {
-                Log.debug("E:\(message)")
-                setStatusMessage(msg)
+            if split.count > 0 {
+                Log.debug("E:\(msg)")
+                //setStatusMessage(msg)
             }
         }
     }
     
     func error(_ msg: String) {
-        setStatusMessage(msg)
+        //setStatusMessage(msg)
     }
     
     func status(_ msg: String) {
-        setStatusMessage(msg)
+        //setStatusMessage(msg)
     }
 
-    var giroEventQueue:Queue = Queue()
-    var b:BLE?
     
     override func sceneDidLoad(){
       
         b = BLE("0000ffe0-0000-1000-8000-00805f9b34fb","0000FFE1-0000-1000-8000-00805F9B34FB",self)
         
-        setStatusMessage("discovering BLE...")
+        //setStatusMessage("discovering BLE...")
         
         setupLabel.name = "setupLabel"
         setupLabel.text = "SETUP"
@@ -180,7 +184,7 @@ class GameScene: SKScene , MessageReceiver{
         for t in touches {
             if buttonSetup!.contains(t.location(in: self)){
                 Log.debug("click over setup")
-                q.startSetup()
+            //    q.startSetup()
                 setStatusMessage("Setup initiated do not move")
             }
             /*

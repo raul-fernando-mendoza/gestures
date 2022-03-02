@@ -9,8 +9,23 @@ import Foundation
 import AVFoundation
 import CoreData
 
-let MAX_EVENT_TIME = 400
-let MIN_PEAK = 2000
+let REBOUND_TIME = 50
+let MIN_PEAK = 6000
+let MIN_DIFF = 300
+	
+
+let xUpURL = Bundle.main.url(forResource: "python_sounds_4c", withExtension: "wav")
+var playerxUp:[AVAudioPlayer?] = []
+let xDownURL = Bundle.main.url(forResource: "python_sounds_4c", withExtension: "wav")
+var playerxDown:[AVAudioPlayer?] = []
+let yUpURL = Bundle.main.url(forResource: "python_sounds_dum" , withExtension: "wav")
+var playeryUp:[AVAudioPlayer?] = []
+let yDownURL = Bundle.main.url(forResource: "python_sounds_tac" , withExtension: "wav")
+var playeryDown:[AVAudioPlayer?] = []
+
+var playersUp:[[AVAudioPlayer?]] = []
+var playersDown:[[AVAudioPlayer?]] = []
+
 
 enum EventType: CaseIterable {
     case rest, up, down, upDown, downUp, upSlowing, downSlowing, changeAxis
@@ -47,43 +62,32 @@ struct Queue{
     
     let factor:Float = 0.4
     
-    let xUpURL = Bundle.main.url(forResource: "python_sounds_4b", withExtension: "wav")
-    var playerxUp:[AVAudioPlayer?] = []
-    let xDownURL = Bundle.main.url(forResource: "python_sounds_4c", withExtension: "wav")
-    var playerxDown:[AVAudioPlayer?] = []
-    let yUpURL = Bundle.main.url(forResource: "python_sounds_dum" , withExtension: "wav")
-    var playeryUp:[AVAudioPlayer?] = []
-    let yDownURL = Bundle.main.url(forResource: "python_sounds_tac" , withExtension: "wav")
-    var playeryDown:[AVAudioPlayer?] = []
-    
-    var playersUp:[[AVAudioPlayer?]] = []
-    var playersDown:[[AVAudioPlayer?]] = []
+
     
     var timePreviousRead:Int = 0
 
     var log_values:[[Int]] = [ [], [], [] ]
-    var fitting_x_values:[Int] = []
-    var fitting_y_values:[Int] = []
+ 
     let MAX_READS = 5
     let GIROX = 0
     let GIROY = 1
     let GIROZ = 2
     var axis_current = 0
-    var fitting_min = 0
-    var fitting_max = 0
-    var fitting_current_slop = 0
+
     var canPlayDown = true
     var canPlayUp = true
-    let MIN_DIFF = 300
+
     var fitting_previous_slop = 0
-    var rebound_time:Int = 0
-    var rebound_value:Int = 0
+    
+  
     
    
     private var initialized = false
     
     init(){
+        
         do{
+            
             try AVAudioSession.sharedInstance().setCategory(
                 AVAudioSession.Category.playback,
                 options: AVAudioSession.CategoryOptions.mixWithOthers
@@ -111,30 +115,8 @@ struct Queue{
         } catch{
             Log.error("init")
         }
+         
 
-    }
-
-    
-    //find a value removing the rest values
-    func removeRestValues(_ value:Int,_ upperLimit:Int,_ lowerLimit:Int) -> Int{
-        if( value > upperLimit){
-            return value - upperLimit
-        }
-        else{
-            return value - lowerLimit
-        }
-    }
-    func toRange(_ value:Float,_ upperLimit:Float,_ lowerLimit:Float) -> Float{
-        return (value - lowerLimit) / (upperLimit - lowerLimit)
-    }
-    func biggerIndexAgg(_ values:[Float]) -> Int{
-        var idx:Int = 0
-        for i in 0...2{
-            if  abs(values[i]) > abs(values[idx]){
-                idx = i
-            }
-        }
-        return idx
     }
     
     mutating func startSetup(){
@@ -162,7 +144,7 @@ struct Queue{
         var values:[Int] = [0,0,0,0,0,0]
         //let ge = GiroEvent( startTime: timePreviousRead,endTime: currentTime,raw: raw, buttonStatus: buttonStatus)
         
-        Log.debug("\(currentTime) \(raw) \(buttonStatus)")
+        
         
        
         for j in 0 ... 5 {
@@ -181,18 +163,20 @@ struct Queue{
             }
         }
         
+        Log.debug("\(currentTime) \(values) \(buttonStatus)")
+        
         if log_values[0].count >= MAX_READS{
             log_values[0].remove(at: 0)
             log_values[1].remove(at: 0)
             log_values[2].remove(at: 0)
-            fitting_x_values.remove(at: 0)
+        
             
         }
 
         log_values[0].append(values[GIROX])
         log_values[1].append(values[GIROY])
         log_values[2].append(values[GIROZ])
-        fitting_x_values.append(currentTime)
+        
         
 
         //find out the new active axis
@@ -212,12 +196,10 @@ struct Queue{
         }
         if axis_current != axis_new{
             axis_current = axis_new
-            fitting_min = values[axis_current]
-            fitting_max = values[axis_current]
-            fitting_current_slop = 0
+
             canPlayDown = true
             canPlayUp = true
-            fitting_y_values = log_values[axis_current]
+          
         }
         
         //canPlay prevent the playing of more than 1 time even if the movement occilate before crossing
@@ -228,82 +210,38 @@ struct Queue{
           canPlayUp = true
         }
 
-
-        var currentValue = 0.0
-        var nextValue = 0.0
-        var (m,c) = (0.0,0.0)
-
-        //creating fitting curve
-        if fitting_x_values.count >= MAX_READS{
-              var fitting_times_converted:[Double] = [Double](repeating:0.0, count: MAX_READS)
-              var fitting_values_converted:[Double] = [Double](repeating:0.0, count: MAX_READS)
-              let startTime = fitting_x_values[0]
-              for j in 0 ..< fitting_times_converted.count{
-                        fitting_times_converted[j] = Double(fitting_x_values[j] - startTime)
-                        fitting_values_converted[j] = Double(log_values[axis_current][j])
-              }
-              //let max_time = fitting_times_converted.max()
-              //let min_value = fitting_values_converted.min()
-              //let max_value = fitting_values_converted.max()
-              let lastTime:Double = fitting_times_converted[ fitting_times_converted.count - 1]
-              (m,c) = findBestFit( fitting_times_converted, fitting_values_converted)
-              currentValue = CalculateNextValue( lastTime, m, c)
-              nextValue = CalculateNextValue( lastTime + 30, m, c)
-              
-              //calculate the slop
-              if Int(nextValue) > Int(currentValue){
-                  fitting_current_slop = 1
-              }
-              else if Int(nextValue) < Int(currentValue){
-                  fitting_current_slop = -1
-              }
-              else{
-                  fitting_current_slop = 0
-              }
-
-          //calculate fitting min and max will be used to know the amplitud of the movement
-              if fitting_current_slop == fitting_previous_slop{
-                  if values[axis_current] < fitting_min{
-                    fitting_min = values[axis_current]
-                  }
-                  if values[axis_current] > fitting_max{
-                    fitting_max = values[axis_current]
-                  }
-              }
-        }
-        if currentTime > rebound_time{
-            rebound_value = 0
-            rebound_time = 0
-        }
-        //Log.debug("\(currentTime) \(f(values[0])) \(f(values[1])) \(f(values[2])) \(f(values[3])) \(f(values[4])) \(f(values[5])) b:\(buttonStatus)  s:\(fitting_current_slop) fM:\(f(fitting_max)) fm:\(f(fitting_min)) r:\(f(rebound_value)) t:\(f(rebound_time)) a:\(axis_current) d:\(canPlayDown) u:\(canPlayUp) s0:\(f(sum0)) s1:\(f(sum1)) m:\(m) c:\(c) cv:\(currentValue) nv:\(nextValue)")
-
+     
 
         
-        if currentTime > rebound_time{
-            if  canPlayDown == true && fitting_previous_slop == -1 && fitting_current_slop == 1 && fitting_min < -MIN_PEAK && currentTime > rebound_time{
-                
-                Log.debug("<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< \(fitting_max) - \(fitting_min) >")
+        Log.debug("\(currentTime) \(f(values[0])) \(f(values[1])) \(f(values[2])) \(f(values[3])) \(f(values[4])) \(f(values[5])) b:\(buttonStatus)   a:\(axis_current) d:\(canPlayDown) u:\(canPlayUp) s0:\(f(sum0)) s1:\(f(sum1)) ")
+         
+
+        
+        if  buttonToggleStatus{
+            if canPlayDown == true && values[axis_current] < -MIN_PEAK
+            {
+                Log.debug("<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<  >")
                 
                 let gesture:Gesture = Gesture( axis: axis_current, directionCurrent: EventType.downUp)
                 
                 play(gesture.axis, gesture.directionCurrent, 1.0)
                 canPlayDown = false
-                //set rebound
-                rebound_time = currentTime + MAX_EVENT_TIME
+                
+
                 
             }
-            if canPlayUp == true && fitting_previous_slop == 1 && fitting_current_slop == -1 && fitting_max > MIN_PEAK && currentTime > rebound_time {
-                Log.debug(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> \(fitting_max) - \(fitting_min)")
+            if canPlayUp == true && values[axis_current] > MIN_PEAK  {
+                Log.debug(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> ")
                 let gesture:Gesture = Gesture(axis: axis_current, directionCurrent: EventType.upDown)
                 play(gesture.axis, gesture.directionCurrent, 1.0)
                 canPlayUp = false
 
-                //set rebound
-                rebound_time = currentTime + MAX_EVENT_TIME
+                
+
                 
             }
         }
-        
+        //prevent buttoncurrentstatus from changing many times if button remains down
         if buttonCurrentStatus==1 && buttonStatus == 0 {
             buttonCurrentStatus = 0
             buttonLastDownTime = currentTime
@@ -337,6 +275,7 @@ struct Queue{
             if setupCnt > 100 {
                 setupRest = false
                 setupCnt=0
+                gesture.message = "You can move now"
                 
                 Log.debug("-------------------" + gesture.message + "-----------------")
 
@@ -374,13 +313,7 @@ struct Queue{
          */
        
         timePreviousRead = currentTime
-        
-        if fitting_current_slop != fitting_previous_slop{
-            fitting_min = values[axis_current]
-            fitting_max = values[axis_current]
-        }
-        fitting_previous_slop = fitting_current_slop
-            
+           
         return gesture
     }
      
