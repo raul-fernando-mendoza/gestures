@@ -24,40 +24,14 @@ extension String {
 
 
 
-class GameScene: SKScene , MessageReceiver{
-    
+class GameScene: SKScene {
+  
     private var label : SKLabelNode?
     private var statusLabel :SKLabelNode =  SKLabelNode(fontNamed: "Arial")
     private var setupLabel :SKLabelNode =  SKLabelNode(fontNamed: "Arial")
     private var spinnyNode : SKShapeNode?
     
-    private var statusMsg:String = "Starting..."
-    public var serviceUUID     = CBUUID.init(string: "0000ffe0-0000-1000-8000-00805f9b34fb")
-    public var characteristicUUID     = CBUUID.init(string: "0000FFE1-0000-1000-8000-00805F9B34FB")
-    
-    private var centralManager: CBCentralManager!
-    private var peripheral: CBPeripheral!
-    
-    private var message:String = ""
-    
-    var q = Queue()
-    var b:BLE?
 
-    /*
-    let xUp = SKAction.playSoundFileNamed("python_sounds_dum.wav", waitForCompletion: false)
-    var xUpPlaying = false
-    let xDown = SKAction.playSoundFileNamed("python_sounds_tac.wav", waitForCompletion: false)
-    var xDownPlaying = false
-    let yUp = SKAction.playSoundFileNamed("python_sounds_4b.wav", waitForCompletion: false)
-    var yUpPlaying = false
-    let yDown = SKAction.playSoundFileNamed("python_sounds_4c.wav", waitForCompletion: false)
-    var yDownPlaying = false
-      */
-    
-    
-    
-
-    
     public func setStatusMessage(_ msg:String){
         statusLabel.text = msg
     }
@@ -67,44 +41,10 @@ class GameScene: SKScene , MessageReceiver{
     }
     
     
-    func message(_ msg: String) {
-        let split = msg.components(separatedBy: "\t")
-        //var timeCurrent:Int? = nil
-        if split.count == 8 , let timeCurrent = Int(split[0]),
-                      let giroX = Int(split[1]),
-                      let giroY = Int(split[2]),
-                      let giroZ = Int(split[3]),
-                      let accX = Int(split[4]),
-                      let accY = Int(split[5]),
-                      let accZ = Int(split[6]),
-                      let buttonStatus = Int(split[7]) {
-                
-            let raw:[Int] = [ giroX, giroY, giroZ, accX, accY, accZ ]
-            Log.debug("\(timeCurrent) \(raw) \(buttonStatus)")
-                
-            let g = q.processMessage(currentTime: timeCurrent, raw: raw,buttonStatus: buttonStatus)
-            setStatusMessage(g.message)
-        }
-        else{
-            if split.count > 0 {
-                Log.debug("E:\(msg)")
-                //setStatusMessage(msg)
-            }
-        }
-    }
-    
-    func error(_ msg: String) {
-        //setStatusMessage(msg)
-    }
-    
-    func status(_ msg: String) {
-        //setStatusMessage(msg)
-    }
-
     
     override func sceneDidLoad(){
       
-        b = BLE("0000ffe0-0000-1000-8000-00805f9b34fb","0000FFE1-0000-1000-8000-00805F9B34FB",self)
+      //  b = BLE("0000ffe0-0000-1000-8000-00805f9b34fb","0000FFE1-0000-1000-8000-00805F9B34FB",self)
         
         //setStatusMessage("discovering BLE...")
         

@@ -83,9 +83,10 @@ struct Queue{
     
    
     private var initialized = false
+    var receiver:MessageReceiver
     
-    init(){
-        
+    init(_ r:MessageReceiver){
+        receiver = r
         do{
             
             try AVAudioSession.sharedInstance().setCategory(
@@ -271,11 +272,11 @@ struct Queue{
                 }
             }
             setupCnt += 1;
-            gesture.message = "stand still \(setupCnt)"
+            receiver.status("stand still \(setupCnt)")
             if setupCnt > 100 {
                 setupRest = false
                 setupCnt=0
-                gesture.message = "You can move now"
+                receiver.status("You can move now")
                 
                 Log.debug("-------------------" + gesture.message + "-----------------")
 
